@@ -1,58 +1,44 @@
-#include <stdio.h>
-#include <cstdlib>
-#include <mpi.h>
+// mpic++ -o int_ring_c int_ring_c.cpp
+// mpirun -np 4 ./int_ring_c 100
 #include <iostream>
+#include <mpi.h>
 
-double time_ring(long Nrepeat, long Nsize, MPI_Comm comm) {
-  int rank;
-  MPI_Comm_rank(comm, &rank);
-  int size;
-  MPI_Comm_size(comm, &size);
 
-  int* msg = (int*) malloc(Nsize*sizeof(int));
-//  #pragma omp parallel for schedule(static) 
-  for (long i = 0; i < Nsize; i++) msg[i] = 0;
+int main(int argc, char *argv[]) { //variable number, variable name 
+    int rank, size, N = 10, value = 0; 
+    double start_time, end_time;
 
-  MPI_Barrier(comm);
-  double tt = MPI_Wtime();
-  for (long repeat  = 0; repeat < Nrepeat; repeat++) {
-    MPI_Status status;
-    if (rank != 0) {
-      MPI_Recv(msg, Nsize, MPI_INT, rank-1, repeat, comm, &status);
-//      #pragma omp parallel for schedule(static) 
-//      for (long i = 0; i < Nsize; i++) msg[i] = msg[i] + rank;
-      msg[0] = msg[0] + rank;
-      MPI_Send(msg, Nsize, MPI_INT, (rank+1)%size, repeat, comm);
+
+    MPI_Init(&argc, &argv); // start MPI
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);//MPI_COMM_WORLD communication within the world, rank-rank of processor
+    MPI_Comm_size(MPI_COMM_WORLD, &size);//total number of processor 
+
+    if (argc > 1) {
+        N = std::stoi(argv[1]); // input argv[1] into N if input number is larger than 1, first is file name 
     }
-    else {
-      MPI_Send(msg, Nsize, MPI_INT, 1, repeat, comm);
-      MPI_Recv(msg, Nsize, MPI_INT, size-1, repeat, comm, &status);
+
+    start_time = MPI_Wtime(); //test starttime, Wtime counts real time
+
+    for (int i = 0; i < N; i++) {
+        if (rank == 0) {
+            MPI_Send(&value, 1, MPI_INT, 1, 0, MPI_COMM_WORLD); //send value length 1 
+            MPI_Recv(&value, 1, MPI_INT, size - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);//size-1 is process nnumber
+            value += rank;
+        } else {
+            MPI_Recv(&value, 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            value += rank;
+            MPI_Send(&value, 1, MPI_INT, (rank + 1) % size, 0, MPI_COMM_WORLD);
+        }
     }
-  }
-  tt = MPI_Wtime() - tt;
 
-  long check = Nrepeat*(size-1)*size/2;
-  if (!rank) printf("After %d loops, result is %d, which should be %d\n", Nrepeat, msg[0], check);
-  free(msg);
-  return tt;
-}
+    end_time = MPI_Wtime(); //stop timing 
 
-int main(int argc, char** argv) {
-  MPI_Init(&argc, &argv);
+    if (rank == 0) {
+        std::cout << "number of loop: "  << N << std::endl;
+        std::cout << "total sum: " << value  << std::endl;
+        std::cout << "Elapsed time: " << end_time - start_time << " seconds" << std::endl;
+    }
 
-  int rank, size;
-  MPI_Comm comm = MPI_COMM_WORLD;
-  MPI_Comm_rank(comm, &rank);
-  MPI_Comm_size(comm, &size);
-
-  long Nrepeat = 1000;
-  double tt = time_ring(Nrepeat, 1, comm);
-  if (!rank) printf("ring latency: %e ms\n", tt);
-
-  Nrepeat = 1000;
-  long Nsize = 300000;
-  tt = time_ring(Nrepeat, Nsize, comm);
-  if (!rank) printf("ring bandwidth: %e GB/s\n", (Nsize*sizeof(int)*Nrepeat)/tt/1e9);
-
-  MPI_Finalize();
+    MPI_Finalize();
+    return 0;
 }
