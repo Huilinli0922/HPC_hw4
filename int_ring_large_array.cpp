@@ -43,12 +43,12 @@ int main(int argc, char *argv[]) { //variable number, variable name
 
     if (rank == 0) {
         double bandwidth=(2.0 * ARRAY_SIZE * sizeof(int)) / (1024 * 1024 * (end_time - start_time)); // In MBytes per second
+        double latency = (end_time - start_time) / (2.0 * N * (size - 1)); 
+        std::cout << "number of processor: " << size << std::endl;
         std::cout << "number of loop: "  << N << std::endl;
         std::cout << "Elapsed time: " << end_time - start_time << " seconds" << std::endl;
         std::cout << "Bandwidth: " << bandwidth << " MBytes/s" << std::endl;
-        std::cout << "Bandwidth: " << bandwidth << " MBytes/s" << std::endl;
-        std::cout << "number of processor: " << size << std::endl;
-
+        std::cout << "Latency: " << latency << " seconds" << std::endl;
     }
 
     MPI_Finalize();
